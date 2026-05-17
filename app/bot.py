@@ -1,6 +1,7 @@
-"""Bot principal con graceful shutdown."""
+"""Bot principal con graceful shutdown, health check y rate limiting."""
 import asyncio
 import logging
+import os
 import signal
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
@@ -13,6 +14,8 @@ from telegram.ext import (
 from app.config import cfg
 from app.logger import log
 from app.portainer_client import get_client, close_client
+from app.health import start_health_server, stop_health_server
+from app.rate_limiter import rate_limit, rate_limiter
 
 
 # ── Signal handlers para graceful shutdown ──────────────────────
@@ -36,8 +39,9 @@ async def shutdown_signal_handler(sig: signal.Signals, app: Application):
     await app.stop()
     await app.shutdown()
     
-    # Cerrar cliente Portainer
+    # Cerrar cliente Portainer y health server
     await close_client()
+    await stop_health_server()
     log.info("Shutdown complete")
 
 
@@ -105,6 +109,7 @@ async def menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 # ── Callback handler principal ────────────────────────────────────
 
+@rate_limit
 async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -501,6 +506,11 @@ def run():
     log.info("Starting Telegram bot...")
     
     app = Application.builder().token(cfg.telegram_token).build()
+    
+    # Iniciar health check HTTP server en segundo plano
+    health_port = cfg.health_port
+    asyncio.create_task(start_health_server(port=health_port))
+    log.info(f"Health server scheduled on port {health_port}")
     
     # Register handlers
     app.add_handler(CommandHandler("start", start))

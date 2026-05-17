@@ -25,6 +25,19 @@ class Config:
     max_retries: int = field(default_factory=lambda: int(os.getenv("MAX_RETRIES", "3")))
     retry_base_delay: float = field(default_factory=lambda: float(os.getenv("RETRY_BASE_DELAY", "1.0")))
     
+    # Rate limiting
+    rate_limit_max_calls: int = field(
+        default_factory=lambda: int(os.getenv("RATE_LIMIT_MAX_CALLS", "5"))
+    )
+    rate_limit_window: float = field(
+        default_factory=lambda: float(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60.0"))
+    )
+
+    # Health server
+    health_port: int = field(
+        default_factory=lambda: int(os.getenv("HEALTH_PORT", "8080"))
+    )
+
     def validate(self) -> list[str]:
         """Validar configuración. Retorna lista de errores. Vacío = OK."""
         errors = []

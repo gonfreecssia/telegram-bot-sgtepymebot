@@ -33,6 +33,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')" || exit 1
 
 # Expose placeholder for health (not really used by telegram bot, but good practice)
+# Health check endpoint
 EXPOSE 8080
 
 CMD ["python", "app/bot.py"]

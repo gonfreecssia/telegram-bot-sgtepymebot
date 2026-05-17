@@ -27,6 +27,15 @@ def init_db() -> None:
     try:
         conn = sqlite3.connect(_get_db_path())
         conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_prefs (
+                telegram_id INTEGER PRIMARY KEY,
+                dark_mode INTEGER DEFAULT 0,
+                language TEXT DEFAULT "es",
+                updated_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        conn.execute("""
+        
             CREATE TABLE IF NOT EXISTS allowed_users (
                 telegram_id INTEGER PRIMARY KEY,
                 username TEXT,
@@ -35,6 +44,15 @@ def init_db() -> None:
             )
         """)
         conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_prefs (
+                telegram_id INTEGER PRIMARY KEY,
+                dark_mode INTEGER DEFAULT 0,
+                language TEXT DEFAULT "es",
+                updated_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
+        conn.execute("""
+        
             CREATE TABLE IF NOT EXISTS usage_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER,
@@ -123,3 +141,33 @@ def log_usage(telegram_id: int, command: str) -> None:
         conn.close()
     except Exception:
         pass  # No fallar por logging
+
+def set_user_pref(telegram_id: int, **kwargs) -> bool:
+    """Actualizar preferencias de un usuario (dark_mode, language, etc)."""
+    try:
+        conn = sqlite3.connect(_get_db_path())
+        for key, value in kwargs.items():
+            if key in ("dark_mode", "language"):
+                conn.execute(
+                    f"INSERT OR REPLACE INTO user_prefs (telegram_id, {key}, updated_at) VALUES (?, ?, datetime('now'))",
+                    (telegram_id, value),
+                )
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        log.error(f"Failed to set user pref {kwargs} for {telegram_id}: {e}")
+        return False
+
+
+def get_user_pref(telegram_id: int, key: str, default=None):
+    """Obtener una preferencia específica de un usuario."""
+    try:
+        conn = sqlite3.connect(_get_db_path())
+        row = conn.execute(
+            f"SELECT {key} FROM user_prefs WHERE telegram_id = ?", (telegram_id,)
+        ).fetchone()
+        conn.close()
+        return row[0] if row else default
+    except Exception:
+        return default

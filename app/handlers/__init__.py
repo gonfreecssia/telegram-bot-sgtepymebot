@@ -13,3 +13,10 @@ from app.handlers.status import (
 )
 from app.handlers.actions import handle_cfg_actions, handle_detail, handle_container_action
 from app.handlers.logs import logs
+from app.handlers.stats import stats
+from app.handlers.batch import (
+    handle_batch_select,
+    handle_batch_toggle,
+    handle_batch_execute,
+    handle_batch_cancel,
+)

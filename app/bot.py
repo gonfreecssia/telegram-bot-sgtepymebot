@@ -35,7 +35,13 @@ from app.handlers.status import (
     handle_back_config,
     handle_back_main,
 )
-from app.handlers.actions import handle_cfg_actions, handle_detail, handle_container_action
+from app.handlers.actions import (
+    handle_cfg_actions,
+    handle_detail,
+    handle_container_action,
+    handle_confirm_action,
+    handle_cancel_action,
+)
 from app.handlers.logs import logs
 from app.handlers.stats import stats
 from app.handlers.batch import (
@@ -90,18 +96,72 @@ async def menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def help_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    text = (
+        "Ayuda del Bot de Monitorizacion\n"
+        "===============================\n\n"
+        "COMANDOS BASICOS\n"
+        "/start - Iniciar el bot\n"
+        "/menu - Abrir menu principal\n"
+        "/help - Mostrar esta ayuda\n\n"
+        "COMANDOS DE CONSULTA\n"
+        "/status - Resumen rapido de contenedores\n"
+        "/stats [nombre] - Uso de CPU/RAM\n"
+        "  Ejemplo: /stats portainer\n"
+        "  Ejemplo: /stats (muestra todos)\n\n"
+        "COMANDOS DE CONTROL\n"
+        "/logs <nombre> [lineas] - Ver logs de un contenedor\n"
+        "  Ejemplo: /logs telegram-bot\n"
+        "  Ejemplo: /logs portainer 100\n\n"
+        "OPERACIONES EN LOTE\n"
+        "/batch_start - Seleccionar y arrancar varios contenedores\n"
+        "/batch_stop - Seleccionar y detener varios contenedores\n"
+        "/batch_restart - Seleccionar y reiniciar varios contenedores\n\n"
+        "ADMINISTRACION (solo admins)\n"
+        "/broadcast <mensaje> - Enviar mensaje a todos los usuarios\n"
+        "  Ejemplo: /broadcast Mantenimiento a las 22:00\n"
+        "/setlang es|en - Cambiar idioma del bot\n"
+        "  Ejemplo: /setlang en\n\n"
+        "LIMITE DE USO\n"
+        "Rate limit: 5 comandos por minuto por usuario\n"
+        "Solo usuarios autorizados pueden usar el bot\n"
+    )
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+
+# ─── F6: /broadcast ───────────────────────────────────────────────────────
+
+from app.userdb import get_all_user_ids
+
+
+async def broadcast(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    """Enviar mensaje a todos los usuarios autorizados."""
+    user_id = str(update.effective_user.id if update.effective_user else 0)
+    allowed_ids = [str(x) for x in cfg.allowed_telegram_ids]
+    if user_id not in allowed_ids:
+        await update.message.reply_text("No tienes permiso para enviar broadcasts.")
+        return
+
+    if not ctx.args:
+        await update.message.reply_text(
+            "Uso: /broadcast <mensaje>\n"
+            "Ejemplo: /broadcast Mantenimiento a las 22:00"
+        )
+        return
+
+    message = " ".join(ctx.args)
+    user_ids = get_all_user_ids()
+    bot = ctx.bot
+
+    sent = failed = 0
+    for uid in user_ids:
+        try:
+            await bot.send_message(chat_id=int(uid), text=f"Broadcast:\n\n{message}")
+            sent += 1
+        except Exception:
+            failed += 1
+
     await update.message.reply_text(
-        "Ayuda del Bot de Monitorizacion\n\n"
-        "/start — Iniciar bot\n"
-        "/menu — Abrir menu principal\n"
-        "/help — Mostrar ayuda\n"
-        "/logs <container> [lineas] — Ver logs\n"
-        "/stats [container] — Uso CPU/RAM\n"
-        "/batch_start — Iniciar varios\n"
-        "/batch_stop — Detener varios\n"
-        "/batch_restart — Reiniciar varios\n\n"
-        "Rate limit: 5 comandos por minuto.",
-        parse_mode="Markdown",
+        f"Broadcast enviado.\nExito: {sent}  Fallidos: {failed}"
     )
 
 
@@ -236,8 +296,25 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         await handle_stats_inline(query)
         return
 
-    # Feedback visual para acciones que mutan estado
-    if data.startswith(("start_", "stop_", "restart_", "remove_")):
+    # R2: Confirm/Cancel para acciones peligrosas
+    if data == "cancel_action":
+        await handle_cancel_action(query)
+        return
+
+    if data.startswith("confirm_action_"):
+        # formato: confirm_action_<short_id>_<action>
+        parts = data.split("_", 2)  # ["confirm", "action", "<short_id>_<action>"]
+        if len(parts) == 3:
+            rest = parts[2]
+            if len(rest) > 13:
+                short_id = rest[:12]
+                action_name = rest[13:]
+                if action_name in ("start", "stop", "restart", "remove"):
+                    await handle_confirm_action(query, short_id, action_name)
+                    return
+
+    # Feedback visual para acciones (sin confirmacion para stop/remove — ya la piden)
+    if data.startswith(("start_", "restart_")):
         await query.edit_message_text(
             text="Procesando...",
             reply_markup=InlineKeyboardMarkup([
@@ -321,6 +398,7 @@ def run() -> None:
     app.add_handler(CommandHandler("help", help_cmd))
     app.add_handler(CommandHandler("logs", logs))
     app.add_handler(CommandHandler("stats", stats))
+    app.add_handler(CommandHandler("broadcast", broadcast))
     app.add_handler(CommandHandler("batch_start", batch_start))
     app.add_handler(CommandHandler("batch_stop", batch_stop))
     app.add_handler(CommandHandler("batch_restart", batch_restart))

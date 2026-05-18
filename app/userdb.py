@@ -171,3 +171,17 @@ def get_user_pref(telegram_id: int, key: str, default=None):
         return row[0] if row else default
     except Exception:
         return default
+
+
+def get_all_user_ids() -> list[int]:
+    """Obtener todos los telegram IDs de usuarios activos."""
+    try:
+        conn = sqlite3.connect(_get_db_path())
+        rows = conn.execute(
+            "SELECT telegram_id FROM allowed_users WHERE active = 1"
+        ).fetchall()
+        conn.close()
+        return [r[0] for r in rows]
+    except Exception as e:
+        log.error(f"Failed to get all user ids: {e}")
+        return []

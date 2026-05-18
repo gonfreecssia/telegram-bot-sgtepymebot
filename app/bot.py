@@ -32,6 +32,8 @@ from app.handlers.status import (
     handle_cfg_avail,
     handle_cfg_list,
     handle_cfg_status,
+    handle_cfg_endpoint,
+    handle_ep_select,
     handle_back_config,
     handle_back_main,
 )
@@ -275,7 +277,11 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
     data = query.data
     user_id = update.effective_user.id if update.effective_user else 0
 
-    # Batch mode
+    # F5: Endpoint selection
+    if data.startswith("ep_select_"):
+        ep_name = data.replace("ep_select_", "")
+        await handle_ep_select(query, ep_name)
+        return
     if data.startswith("batch_enter_"):
         action = data.replace("batch_enter_", "")
         await handle_batch_select(query, user_id, action)
@@ -344,6 +350,8 @@ async def button_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None
         await handle_cfg_status(query)
     elif parsed == CallbackActionType.CFG_ACTIONS:
         await handle_cfg_actions(query)
+    elif parsed == CallbackActionType.CFG_ENDPOINT:
+        await handle_cfg_endpoint(query)
     elif parsed == CallbackActionType.BACK_CONFIG:
         await handle_back_config(query)
     elif parsed == CallbackActionType.BACK_MAIN:

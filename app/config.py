@@ -61,6 +61,11 @@ class Config:
         default_factory=lambda: os.getenv("ALLOWED_TELEGRAM_IDS", "")
     )  # comma-separated: "472171448,123456789"
 
+    # ── Multi-endpoint (F5) ────────────────────────────────────
+    portainer_endpoints_json: str = field(
+        default_factory=lambda: os.getenv("PORTAINER_ENDPOINTS", "")
+    )  # JSON array de endpoints
+
     # ── Reportes programados ──────────────────────────────────
     report_schedule: str = field(
         default_factory=lambda: os.getenv("REPORT_SCHEDULE", "")

@@ -10,18 +10,19 @@ from app.portainer_client import get_client
 def config_menu_inline() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("🔍 Validar Servidor", callback_data="cfg_server"),
-            InlineKeyboardButton("📊 Disponibilidad", callback_data="cfg_avail"),
+            InlineKeyboardButton("Servidor", callback_data="cfg_endpoint"),
+            InlineKeyboardButton("Validar", callback_data="cfg_server"),
         ],
         [
-            InlineKeyboardButton("📋 Contenedores", callback_data="cfg_list"),
-            InlineKeyboardButton("📄 Detalle", callback_data="cfg_status"),
+            InlineKeyboardButton("Disponibilidad", callback_data="cfg_avail"),
+            InlineKeyboardButton("Contenedores", callback_data="cfg_list"),
         ],
         [
-            InlineKeyboardButton("🎮 Acciones", callback_data="cfg_actions"),
+            InlineKeyboardButton("Detalle", callback_data="cfg_status"),
+            InlineKeyboardButton("Acciones", callback_data="cfg_actions"),
         ],
         [
-            InlineKeyboardButton("🔙 Volver", callback_data="back_main"),
+            InlineKeyboardButton("Volver", callback_data="back_main"),
         ],
     ])
 
@@ -94,10 +95,9 @@ async def handle_config_menu(query) -> None:
 
 
 async def handle_cfg_server(query) -> None:
-    """Validar conexión a Portainer y mostrar resumen."""
+    """Validar conexion a Portainer y mostrar resumen."""
     client = get_client()
     try:
-        await client.auth()
         containers = await client.get_containers()
         running = sum(1 for c in containers if c.get("State") == "running")
         stopped = sum(1 for c in containers if c.get("State") != "running")
@@ -115,20 +115,20 @@ async def handle_cfg_server(query) -> None:
         )
         await query.edit_message_text(
             text=(
-                f"🟢 Servidor Portainer: Operativo\n"
-                f"🔗 URL: {cfg.portainer_url}\n"
-                f"📦 Total contenedores: {len(containers)}\n"
-                f"✅ Ejecutándose: {running}\n"
-                f"⛔ Detenidos: {stopped}\n\n"
-                f"── Contenedor Propio ──\n"
-                f"🟢 {own_name or 'No detectado'}"
+                f"Servidor Portainer: Operativo\n"
+                f"URL: {client.url}\n"
+                f"Total contenedores: {len(containers)}\n"
+                f"Ejecutandose: {running}\n"
+                f"Detenidos: {stopped}\n\n"
+                f"Contenedor propio:\n"
+                f"{own_name or 'No detectado'}"
             ),
             reply_markup=config_menu_inline(),
         )
     except Exception as e:
         log.error(f"Error in cfg_server: {e}")
         await query.edit_message_text(
-            text=f"🔴 Servidor Portainer: Error\n{str(e)[:200]}",
+            text=f"Servidor Portainer: Error\n{str(e)[:200]}",
             reply_markup=config_menu_inline(),
         )
 
@@ -242,6 +242,52 @@ async def handle_back_config(query) -> None:
 
 async def handle_back_main(query) -> None:
     await query.edit_message_text(
-        text="📋 Menú principal",
+        text="Menu principal",
         reply_markup=main_menu_inline(),
     )
+
+
+# ─── F5: Multi-endpoint ──────────────────────────────────────────────────────
+
+from app.portainer_client import (
+    get_endpoint_configs,
+    get_active_endpoint_name,
+    switch_endpoint,
+)
+
+
+async def handle_cfg_endpoint(query) -> None:
+    """Mostrar selector de endpoints disponibles."""
+    endpoints = get_endpoint_configs()
+    active = get_active_endpoint_name()
+
+    keyboard = []
+    for ep in endpoints:
+        marker = " [activo]" if ep.name == active else ""
+        keyboard.append([
+            InlineKeyboardButton(
+                f"{ep.name}{marker}",
+                callback_data=f"ep_select_{ep.name}",
+            )
+        ])
+    keyboard.append([InlineKeyboardButton("Volver", callback_data="back_config")])
+
+    await query.edit_message_text(
+        text=f"Servidor activo: {active}\nSelecciona un servidor:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+    )
+
+
+async def handle_ep_select(query, name: str) -> None:
+    """Cambiar endpoint activo."""
+    success = await switch_endpoint(name)
+    if success:
+        await query.edit_message_text(
+            text=f"Servidor cambiado a: {name}\nRecargando datos...",
+            reply_markup=config_menu_inline(),
+        )
+    else:
+        await query.edit_message_text(
+            text=f"Endpoint '{name}' no encontrado.",
+            reply_markup=config_menu_inline(),
+        )

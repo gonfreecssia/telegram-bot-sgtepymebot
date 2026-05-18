@@ -27,6 +27,7 @@ class CallbackActionType(StrEnum):
     CFG_LIST = "cfg_list"
     CFG_STATUS = "cfg_status"
     CFG_ACTIONS = "cfg_actions"
+    CFG_ENDPOINT = "cfg_endpoint"  # F5: selector de endpoint
 
     # Navegacion
     BACK_CONFIG = "back_config"
